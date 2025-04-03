@@ -1,0 +1,12 @@
+version: '3'
+
+services:
+  image-processing-api:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./config.yaml:/app/config.yaml
+      - ./data:/app/data
+      - ./models:/app/models
+    restart: unless-stopped
