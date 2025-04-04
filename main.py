@@ -5,11 +5,13 @@ import uvicorn
 import torch
 from typing import Dict, Any, List
 from fastapi import FastAPI, File, UploadFile, HTTPException
-from fastapi.responses import JSONResponse
+from starlette.responses import JSONResponse
 import logging
 from PIL import Image
 import io
 from transformers import pipeline, AutoImageProcessor, AutoModelForImageClassification
+from controller.mailing_configs import EmailSchema, ResultsForUI, conf
+from fastapi_mail import FastMail, MessageSchema, MessageType
 
 # Configure logging
 logging.basicConfig(
@@ -44,7 +46,6 @@ logger.info(f"Loading model from {config['model_path']}...")
 try:
     device = "cuda" if torch.cuda.is_available() else "cpu"
     logger.info(f"Device set to use {device}")
-    
     
     model_path = r"D:\MyData\Coding\plant_disease_backend\VIT-Base-model"    
     image_processor = AutoImageProcessor.from_pretrained(model_path)
@@ -117,7 +118,24 @@ async def health_check():
     """Health check endpoint."""
     return {"status": "healthy", "model": config["model_path"]}
 
+@app.post("/send-email/")
+async def simple_send(email: EmailSchema, data: List[ResultsForUI]) -> JSONResponse:
+    template_data = {"data": data}
+
+    message = MessageSchema(
+        subject="Plant Disease Detection Alert",
+        recipients=email.model_dump().get("email"),
+        template_body=template_data,
+        subtype=MessageType.html
+    )
+
+    fm = FastMail(conf)
+    await fm.send_message(message, template_name="plant_disease_alert.html")
+    return JSONResponse(status_code=200, content={"message": "Disease alert email has been sent"})
+
 if __name__ == "__main__":
+    # Downgrade pydantic to version 1.10.12 to fix Undefined import error
+    # pip install pydantic==1.10.12
     uvicorn.run(
         "main:app",
         host=config["host"],
